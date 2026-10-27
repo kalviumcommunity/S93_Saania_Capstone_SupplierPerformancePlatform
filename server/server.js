@@ -51,30 +51,48 @@ app.get("/api/suppliers", async (req, res) => {
   }
 });
 
-// WRITE: Create a supplier in MongoDB
+// POST: Create a supplier in MongoDB
 app.post("/api/suppliers", async (req, res) => {
   try {
-    const supplier = await Supplier.create(req.body);
+    const { name, email, contactPerson, category, status } = req.body;
+
+    if (!name || !email || !contactPerson || !category || !status) {
+      return res.status(400).json({
+        message:
+          "name, email, contactPerson, category, and status are required",
+      });
+    }
+
+    const supplier = await Supplier.create({
+      name,
+      email,
+      contactPerson,
+      category,
+      status,
+    });
+
     res.status(201).json(supplier);
   } catch (error) {
     res.status(400).json({ error: error.message });
   }
 });
 
-// READ: Get all performance records
+// GET: Get all performance records
 app.get("/api/performance", async (req, res) => {
   try {
     const records = await Performance.find().populate("supplier");
-    res.json(records);
+
+    res.status(200).json(records);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-// WRITE: Create a performance record
+// POST: Create a performance record
 app.post("/api/performance", async (req, res) => {
   try {
     const record = await Performance.create(req.body);
+
     res.status(201).json(record);
   } catch (error) {
     res.status(400).json({ error: error.message });
