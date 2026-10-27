@@ -15,13 +15,39 @@ app.get("/", (req, res) => {
   });
 });
 
-// READ: Get all suppliers from MongoDB
+// GET: Search and filter suppliers
 app.get("/api/suppliers", async (req, res) => {
   try {
-    const suppliers = await Supplier.find();
-    res.json(suppliers);
+    const { search, status, category } = req.query;
+
+    const filter = {};
+
+    if (search) {
+      filter.name = {
+        $regex: search,
+        $options: "i",
+      };
+    }
+
+    if (status) {
+      filter.status = status;
+    }
+
+    if (category) {
+      filter.category = category;
+    }
+
+    const suppliers = await Supplier.find(filter);
+
+    res.status(200).json({
+      count: suppliers.length,
+      suppliers,
+    });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({
+      message: "Failed to fetch suppliers",
+      error: error.message,
+    });
   }
 });
 
