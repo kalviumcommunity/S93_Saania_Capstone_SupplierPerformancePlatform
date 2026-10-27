@@ -51,7 +51,7 @@ app.get("/api/suppliers", async (req, res) => {
   }
 });
 
-// POST: Create a supplier in MongoDB
+// POST: Create a supplier
 app.post("/api/suppliers", async (req, res) => {
   try {
     const { name, email, contactPerson, category, status } = req.body;
@@ -73,7 +73,55 @@ app.post("/api/suppliers", async (req, res) => {
 
     res.status(201).json(supplier);
   } catch (error) {
-    res.status(400).json({ error: error.message });
+    res.status(400).json({
+      error: error.message,
+    });
+  }
+});
+
+// PUT: Update an existing supplier
+app.put("/api/suppliers/:id", async (req, res) => {
+  try {
+    const { name, email, contactPerson, category, status } = req.body;
+
+    const updates = {};
+
+    if (name !== undefined) updates.name = name;
+    if (email !== undefined) updates.email = email;
+    if (contactPerson !== undefined) updates.contactPerson = contactPerson;
+    if (category !== undefined) updates.category = category;
+    if (status !== undefined) updates.status = status;
+
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({
+        message: "Provide at least one field to update",
+      });
+    }
+
+    const supplier = await Supplier.findByIdAndUpdate(
+      req.params.id,
+      updates,
+      {
+        new: true,
+        runValidators: true,
+      }
+    );
+
+    if (!supplier) {
+      return res.status(404).json({
+        message: "Supplier not found",
+      });
+    }
+
+    res.status(200).json({
+      message: "Supplier updated successfully",
+      supplier,
+    });
+  } catch (error) {
+    res.status(400).json({
+      message: "Failed to update supplier",
+      error: error.message,
+    });
   }
 });
 
@@ -84,7 +132,9 @@ app.get("/api/performance", async (req, res) => {
 
     res.status(200).json(records);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({
+      error: error.message,
+    });
   }
 });
 
@@ -95,7 +145,9 @@ app.post("/api/performance", async (req, res) => {
 
     res.status(201).json(record);
   } catch (error) {
-    res.status(400).json({ error: error.message });
+    res.status(400).json({
+      error: error.message,
+    });
   }
 });
 
