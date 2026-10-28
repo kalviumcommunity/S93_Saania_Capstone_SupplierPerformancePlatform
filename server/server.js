@@ -1,12 +1,13 @@
-
 import "dotenv/config";
 import express from "express";
+import cors from "cors";
 import mongoose from "mongoose";
 import Supplier from "./models/Supplier.js";
 import Performance from "./models/Performance.js";
 
 const app = express();
 
+app.use(cors());
 app.use(express.json());
 
 app.get("/", (req, res) => {
@@ -120,6 +121,29 @@ app.put("/api/suppliers/:id", async (req, res) => {
   } catch (error) {
     res.status(400).json({
       message: "Failed to update supplier",
+      error: error.message,
+    });
+  }
+});
+
+// DELETE: Delete an existing supplier
+app.delete("/api/suppliers/:id", async (req, res) => {
+  try {
+    const supplier = await Supplier.findByIdAndDelete(req.params.id);
+
+    if (!supplier) {
+      return res.status(404).json({
+        message: "Supplier not found",
+      });
+    }
+
+    res.status(200).json({
+      message: "Supplier deleted successfully",
+      supplier,
+    });
+  } catch (error) {
+    res.status(400).json({
+      message: "Failed to delete supplier",
       error: error.message,
     });
   }
