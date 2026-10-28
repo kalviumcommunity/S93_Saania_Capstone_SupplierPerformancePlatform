@@ -1,3 +1,4 @@
+
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
@@ -20,7 +21,6 @@ app.get("/", (req, res) => {
 app.get("/api/suppliers", async (req, res) => {
   try {
     const { search, status, category } = req.query;
-
     const filter = {};
 
     if (search) {
@@ -84,7 +84,6 @@ app.post("/api/suppliers", async (req, res) => {
 app.put("/api/suppliers/:id", async (req, res) => {
   try {
     const { name, email, contactPerson, category, status } = req.body;
-
     const updates = {};
 
     if (name !== undefined) updates.name = name;
@@ -149,7 +148,7 @@ app.delete("/api/suppliers/:id", async (req, res) => {
   }
 });
 
-// GET: Get all performance records
+// GET: Get all performance records with supplier details
 app.get("/api/performance", async (req, res) => {
   try {
     const records = await Performance.find().populate("supplier");
@@ -162,12 +161,62 @@ app.get("/api/performance", async (req, res) => {
   }
 });
 
-// POST: Create a performance record
+// POST: Create a performance record linked to an existing supplier
 app.post("/api/performance", async (req, res) => {
   try {
-    const record = await Performance.create(req.body);
+    const {
+      supplier,
+      qualityScore,
+      deliveryScore,
+      costScore,
+      overallScore,
+      evaluationDate,
+    } = req.body;
 
-    res.status(201).json(record);
+    if (
+      !supplier ||
+      qualityScore === undefined ||
+      deliveryScore === undefined ||
+      costScore === undefined ||
+      overallScore === undefined
+    ) {
+      return res.status(400).json({
+        message: "Supplier and all performance scores are required",
+      });
+    }
+
+    if (!mongoose.isValidObjectId(supplier)) {
+      return res.status(400).json({
+        message: "Invalid supplier ID",
+      });
+    }
+
+    const existingSupplier = await Supplier.findById(supplier);
+
+    if (!existingSupplier) {
+      return res.status(404).json({
+        message: "Supplier not found",
+      });
+    }
+
+    const performanceData = {
+      supplier,
+      qualityScore,
+      deliveryScore,
+      costScore,
+      overallScore,
+    };
+
+    if (evaluationDate !== undefined) {
+      performanceData.evaluationDate = evaluationDate;
+    }
+
+    const record = await Performance.create(performanceData);
+
+    const populatedRecord = await Performance.findById(record._id)
+      .populate("supplier");
+
+    res.status(201).json(populatedRecord);
   } catch (error) {
     res.status(400).json({
       error: error.message,
