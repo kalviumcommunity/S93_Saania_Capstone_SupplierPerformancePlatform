@@ -9,6 +9,7 @@ import jwt from "jsonwebtoken";
 import Supplier from "./models/Supplier.js";
 import Performance from "./models/Performance.js";
 import User from "./models/User.js";
+import authMiddleware from "./middleware/authMiddleware.js";
 
 const app = express();
 
@@ -21,7 +22,7 @@ app.get("/", (req, res) => {
   });
 });
 
-// POST: Register a new user
+// POST: Register a new user (public route)
 app.post("/api/auth/register", async (req, res) => {
   try {
     const { username, password } = req.body;
@@ -90,7 +91,7 @@ app.post("/api/auth/register", async (req, res) => {
   }
 });
 
-// POST: Login with username and password
+// POST: Login and generate a JWT (public route)
 app.post("/api/auth/login", async (req, res) => {
   try {
     const { username, password } = req.body;
@@ -156,8 +157,8 @@ app.post("/api/auth/login", async (req, res) => {
   }
 });
 
-// GET: Search and filter suppliers
-app.get("/api/suppliers", async (req, res) => {
+// GET: Search and filter suppliers (protected)
+app.get("/api/suppliers", authMiddleware, async (req, res) => {
   try {
     const { search, status, category } = req.query;
     const filter = {};
@@ -179,20 +180,20 @@ app.get("/api/suppliers", async (req, res) => {
 
     const suppliers = await Supplier.find(filter);
 
-    res.status(200).json({
+    return res.status(200).json({
       count: suppliers.length,
       suppliers,
     });
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       message: "Failed to fetch suppliers",
       error: error.message,
     });
   }
 });
 
-// POST: Create a supplier
-app.post("/api/suppliers", async (req, res) => {
+// POST: Create a supplier (protected)
+app.post("/api/suppliers", authMiddleware, async (req, res) => {
   try {
     const { name, email, contactPerson, category, status } = req.body;
 
@@ -211,16 +212,16 @@ app.post("/api/suppliers", async (req, res) => {
       status,
     });
 
-    res.status(201).json(supplier);
+    return res.status(201).json(supplier);
   } catch (error) {
-    res.status(400).json({
+    return res.status(400).json({
       error: error.message,
     });
   }
 });
 
-// PUT: Update an existing supplier
-app.put("/api/suppliers/:id", async (req, res) => {
+// PUT: Update a supplier (protected)
+app.put("/api/suppliers/:id", authMiddleware, async (req, res) => {
   try {
     const { name, email, contactPerson, category, status } = req.body;
     const updates = {};
@@ -252,20 +253,20 @@ app.put("/api/suppliers/:id", async (req, res) => {
       });
     }
 
-    res.status(200).json({
+    return res.status(200).json({
       message: "Supplier updated successfully",
       supplier,
     });
   } catch (error) {
-    res.status(400).json({
+    return res.status(400).json({
       message: "Failed to update supplier",
       error: error.message,
     });
   }
 });
 
-// DELETE: Delete an existing supplier
-app.delete("/api/suppliers/:id", async (req, res) => {
+// DELETE: Delete a supplier (protected)
+app.delete("/api/suppliers/:id", authMiddleware, async (req, res) => {
   try {
     const supplier = await Supplier.findByIdAndDelete(req.params.id);
 
@@ -275,33 +276,33 @@ app.delete("/api/suppliers/:id", async (req, res) => {
       });
     }
 
-    res.status(200).json({
+    return res.status(200).json({
       message: "Supplier deleted successfully",
       supplier,
     });
   } catch (error) {
-    res.status(400).json({
+    return res.status(400).json({
       message: "Failed to delete supplier",
       error: error.message,
     });
   }
 });
 
-// GET: Get all performance records with supplier details
-app.get("/api/performance", async (req, res) => {
+// GET: Get performance records (protected)
+app.get("/api/performance", authMiddleware, async (req, res) => {
   try {
     const records = await Performance.find().populate("supplier");
 
-    res.status(200).json(records);
+    return res.status(200).json(records);
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       error: error.message,
     });
   }
 });
 
-// POST: Create a performance record linked to an existing supplier
-app.post("/api/performance", async (req, res) => {
+// POST: Create a performance record (protected)
+app.post("/api/performance", authMiddleware, async (req, res) => {
   try {
     const {
       supplier,
@@ -355,9 +356,9 @@ app.post("/api/performance", async (req, res) => {
     const populatedRecord = await Performance.findById(record._id)
       .populate("supplier");
 
-    res.status(201).json(populatedRecord);
+    return res.status(201).json(populatedRecord);
   } catch (error) {
-    res.status(400).json({
+    return res.status(400).json({
       error: error.message,
     });
   }
