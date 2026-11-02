@@ -5,6 +5,7 @@ import cors from "cors";
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import { OAuth2Client } from "google-auth-library";
 
 import Supplier from "./models/Supplier.js";
 import Performance from "./models/Performance.js";
@@ -12,6 +13,8 @@ import User from "./models/User.js";
 import authMiddleware from "./middleware/authMiddleware.js";
 
 const app = express();
+
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 app.use(cors());
 app.use(express.json());
@@ -91,7 +94,7 @@ app.post("/api/auth/register", async (req, res) => {
   }
 });
 
-// POST: Login and generate a JWT (public route)
+// POST: Login with username and password (public route)
 app.post("/api/auth/login", async (req, res) => {
   try {
     const { username, password } = req.body;
@@ -111,7 +114,7 @@ app.post("/api/auth/login", async (req, res) => {
       username: username.trim(),
     });
 
-    if (!user) {
+    if (!user || !user.password) {
       return res.status(401).json({
         message: "Invalid username or password",
       });
@@ -153,6 +156,77 @@ app.post("/api/auth/login", async (req, res) => {
 
     return res.status(500).json({
       message: "Login failed",
+    });
+  }
+});
+
+// POST: Google login (public route)
+app.post("/api/auth/google", async (req, res) => {
+  try {
+    const { credential } = req.body;
+
+    if (!credential) {
+      return res.status(400).json({
+        message: "Google credential is required",
+      });
+    }
+
+    if (!process.env.GOOGLE_CLIENT_ID || !process.env.JWT_SECRET) {
+      return res.status(500).json({
+        message: "Google authentication is not configured",
+      });
+    }
+
+    const ticket = await googleClient.verifyIdToken({
+      idToken: credential,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+
+    const payload = ticket.getPayload();
+
+    if (
+      !payload ||
+      !payload.sub ||
+      !payload.email ||
+      !payload.email_verified
+    ) {
+      return res.status(401).json({
+        message: "Google account verification failed",
+      });
+    }
+
+    let user = await User.findOne({
+      googleId: payload.sub,
+    });
+
+    if (!user) {
+      user = await User.create({
+        username: `google_${payload.sub}`,
+        googleId: payload.sub,
+        email: payload.email,
+      });
+    }
+
+    const token = jwt.sign(
+      { userId: user._id.toString() },
+      process.env.JWT_SECRET,
+      { expiresIn: "1h" }
+    );
+
+    return res.status(200).json({
+      message: "Google login successful",
+      token,
+      user: {
+        id: user._id,
+        username: user.username,
+        email: user.email,
+      },
+    });
+  } catch (error) {
+    console.error("Google login error:", error.message);
+
+    return res.status(401).json({
+      message: "Google authentication failed",
     });
   }
 });
