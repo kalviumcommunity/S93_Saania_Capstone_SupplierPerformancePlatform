@@ -1,10 +1,11 @@
+
 import { useState, useEffect } from "react";
 import Header from "./Header";
 import SupplierCard from "./SupplierCard";
 
 const API_URL = "http://localhost:5000/api/suppliers";
 
-function Dashboard() {
+function Dashboard({ token, onLogout }) {
   const [suppliers, setSuppliers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -23,7 +24,12 @@ function Dashboard() {
       setLoading(true);
       setError("");
 
-      const response = await fetch(API_URL);
+      const response = await fetch(API_URL, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
       const data = await response.json();
 
       if (!response.ok) {
@@ -38,13 +44,9 @@ function Dashboard() {
     }
   }
 
-useEffect(() => {
-  async function loadSuppliers() {
-    await fetchSuppliers();
-  }
-
-  loadSuppliers();
-}, []);
+  useEffect(() => {
+    fetchSuppliers();
+  }, [token]);
 
   function handleEdit(supplier) {
     setEditingSupplier(supplier);
@@ -79,6 +81,7 @@ useEffect(() => {
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify(form),
         }
@@ -109,6 +112,9 @@ useEffect(() => {
 
       const response = await fetch(`${API_URL}/${supplier._id}`, {
         method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
       });
 
       const data = await response.json();
@@ -128,7 +134,12 @@ useEffect(() => {
       <Header />
 
       <main id="suppliers">
-        <h2>Supplier Dashboard</h2>
+        <div>
+          <h2>Supplier Dashboard</h2>
+          <button type="button" onClick={onLogout}>
+            Logout
+          </button>
+        </div>
 
         {error && <p role="alert">{error}</p>}
 
