@@ -1,4 +1,3 @@
-
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
@@ -6,10 +5,15 @@ import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { OAuth2Client } from "google-auth-library";
+import multer from "multer";
+import fs from "fs/promises";
+import path from "path";
 
 import Supplier from "./models/Supplier.js";
 import Performance from "./models/Performance.js";
 import User from "./models/User.js";
+import SupplierDocument from "./models/SupplierDocument.js";
+import upload from "./middleware/uploadMiddleware.js";
 import authMiddleware from "./middleware/authMiddleware.js";
 
 const app = express();
@@ -342,7 +346,13 @@ app.put("/api/suppliers/:id", authMiddleware, async (req, res) => {
 // DELETE: Delete a supplier (protected)
 app.delete("/api/suppliers/:id", authMiddleware, async (req, res) => {
   try {
-    const supplier = await Supplier.findByIdAndDelete(req.params.id);
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({
+        message: "Invalid supplier ID",
+      });
+    }
+
+    const supplier = await Supplier.findById(req.params.id);
 
     if (!supplier) {
       return res.status(404).json({
@@ -350,9 +360,28 @@ app.delete("/api/suppliers/:id", authMiddleware, async (req, res) => {
       });
     }
 
+    const documents = await SupplierDocument.find({
+      supplier: supplier._id,
+    });
+
+    for (const document of documents) {
+      const filePath = path.join(
+        process.cwd(),
+        "uploads",
+        path.basename(document.filename)
+      );
+
+      await fs.unlink(filePath).catch(() => {});
+    }
+
+    await SupplierDocument.deleteMany({
+      supplier: supplier._id,
+    });
+
+    await Supplier.findByIdAndDelete(supplier._id);
+
     return res.status(200).json({
-      message: "Supplier deleted successfully",
-      supplier,
+      message: "Supplier and associated documents deleted successfully",
     });
   } catch (error) {
     return res.status(400).json({
@@ -361,6 +390,199 @@ app.delete("/api/suppliers/:id", authMiddleware, async (req, res) => {
     });
   }
 });
+
+// POST: Upload a document for a supplier (protected)
+app.post(
+  "/api/suppliers/:id/documents",
+  authMiddleware,
+  upload.single("document"),
+  async (req, res) => {
+    try {
+      if (!mongoose.isValidObjectId(req.params.id)) {
+        if (req.file) {
+          await fs.unlink(req.file.path).catch(() => {});
+        }
+
+        return res.status(400).json({
+          message: "Invalid supplier ID",
+        });
+      }
+
+      const supplier = await Supplier.findById(req.params.id);
+
+      if (!supplier) {
+        if (req.file) {
+          await fs.unlink(req.file.path).catch(() => {});
+        }
+
+        return res.status(404).json({
+          message: "Supplier not found",
+        });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({
+          message: "Please select a document to upload",
+        });
+      }
+
+      const document = await SupplierDocument.create({
+        supplier: supplier._id,
+        originalName: req.file.originalname,
+        filename: req.file.filename,
+        mimetype: req.file.mimetype,
+        size: req.file.size,
+      });
+
+      return res.status(201).json({
+        message: "Document uploaded successfully",
+        document,
+      });
+    } catch (error) {
+      if (req.file) {
+        await fs.unlink(req.file.path).catch(() => {});
+      }
+
+      return res.status(500).json({
+        message: "Document upload failed",
+        error: error.message,
+      });
+    }
+  }
+);
+
+// GET: List documents of a supplier (protected)
+app.get(
+  "/api/suppliers/:id/documents",
+  authMiddleware,
+  async (req, res) => {
+    try {
+      if (!mongoose.isValidObjectId(req.params.id)) {
+        return res.status(400).json({
+          message: "Invalid supplier ID",
+        });
+      }
+
+      const supplier = await Supplier.findById(req.params.id);
+
+      if (!supplier) {
+        return res.status(404).json({
+          message: "Supplier not found",
+        });
+      }
+
+      const documents = await SupplierDocument.find({
+        supplier: supplier._id,
+      }).sort({ createdAt: -1 });
+
+      return res.status(200).json({
+        count: documents.length,
+        documents,
+      });
+    } catch (error) {
+      return res.status(500).json({
+        message: "Failed to fetch documents",
+        error: error.message,
+      });
+    }
+  }
+);
+
+// GET: Download a supplier document (protected)
+app.get(
+  "/api/suppliers/:id/documents/:documentId/download",
+  authMiddleware,
+  async (req, res) => {
+    try {
+      if (
+        !mongoose.isValidObjectId(req.params.id) ||
+        !mongoose.isValidObjectId(req.params.documentId)
+      ) {
+        return res.status(400).json({
+          message: "Invalid supplier or document ID",
+        });
+      }
+
+      const document = await SupplierDocument.findOne({
+        _id: req.params.documentId,
+        supplier: req.params.id,
+      });
+
+      if (!document) {
+        return res.status(404).json({
+          message: "Document not found",
+        });
+      }
+
+      const filePath = path.join(
+        process.cwd(),
+        "uploads",
+        path.basename(document.filename)
+      );
+
+      return res.download(filePath, document.originalName, (error) => {
+        if (error && !res.headersSent) {
+          res.status(404).json({
+            message: "File not found on server",
+          });
+        }
+      });
+    } catch (error) {
+      return res.status(500).json({
+        message: "Document download failed",
+        error: error.message,
+      });
+    }
+  }
+);
+
+// DELETE: Delete a supplier document (protected)
+app.delete(
+  "/api/suppliers/:id/documents/:documentId",
+  authMiddleware,
+  async (req, res) => {
+    try {
+      if (
+        !mongoose.isValidObjectId(req.params.id) ||
+        !mongoose.isValidObjectId(req.params.documentId)
+      ) {
+        return res.status(400).json({
+          message: "Invalid supplier or document ID",
+        });
+      }
+
+      const document = await SupplierDocument.findOne({
+        _id: req.params.documentId,
+        supplier: req.params.id,
+      });
+
+      if (!document) {
+        return res.status(404).json({
+          message: "Document not found",
+        });
+      }
+
+      const filePath = path.join(
+        process.cwd(),
+        "uploads",
+        path.basename(document.filename)
+      );
+
+      await fs.unlink(filePath).catch(() => {});
+
+      await SupplierDocument.findByIdAndDelete(document._id);
+
+      return res.status(200).json({
+        message: "Document deleted successfully",
+      });
+    } catch (error) {
+      return res.status(500).json({
+        message: "Document deletion failed",
+        error: error.message,
+      });
+    }
+  }
+);
 
 // GET: Get performance records (protected)
 app.get("/api/performance", authMiddleware, async (req, res) => {
@@ -436,6 +658,26 @@ app.post("/api/performance", authMiddleware, async (req, res) => {
       error: error.message,
     });
   }
+});
+
+// Handle upload errors
+app.use((error, req, res, next) => {
+  if (error instanceof multer.MulterError) {
+    return res.status(400).json({
+      message:
+        error.code === "LIMIT_FILE_SIZE"
+          ? "File size must not exceed 5 MB"
+          : error.message,
+    });
+  }
+
+  if (error) {
+    return res.status(400).json({
+      message: error.message || "File upload failed",
+    });
+  }
+
+  next();
 });
 
 const PORT = process.env.PORT || 5000;
