@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { GoogleOAuthProvider, GoogleLogin } from "@react-oauth/google";
 import Dashboard from "./components/Dashboard";
@@ -20,9 +19,7 @@ function AppContent() {
 
       const result = await fetch(API_URL, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           credential: response.credential,
         }),
@@ -37,7 +34,7 @@ function AppContent() {
       localStorage.setItem("token", data.token);
       setToken(data.token);
     } catch (err) {
-      setError(err.message);
+      setError(err.message || "Unable to sign in");
     } finally {
       setLoading(false);
     }
@@ -53,20 +50,41 @@ function AppContent() {
   }
 
   return (
-    <div className="login-container">
-      <h1>Supplier Performance Intelligence</h1>
-      <h2>Sign in to continue</h2>
+    <div className="login-page">
+      <div className="login-card">
+        <div className="login-logo">SP</div>
 
-      {error && <p role="alert">{error}</p>}
+        <p className="login-label">SUPPLIER INTELLIGENCE</p>
 
-      {loading ? (
-        <p>Signing in...</p>
-      ) : (
-        <GoogleLogin
-          onSuccess={handleGoogleSuccess}
-          onError={() => setError("Google login failed. Please try again.")}
-        />
-      )}
+        <h1>
+          Supplier Performance
+          <span>Dashboard</span>
+        </h1>
+
+        <p className="login-description">
+          Manage suppliers. Track performance.
+        </p>
+
+        {error && <div className="alert alert-error">{error}</div>}
+
+        <div className="google-login-area">
+          {loading ? (
+            <p className="loading-text">Signing in...</p>
+          ) : (
+            <GoogleLogin
+              onSuccess={handleGoogleSuccess}
+              onError={() => setError("Google login failed. Try again.")}
+              theme="filled_black"
+              shape="pill"
+              size="large"
+              text="signin_with"
+              width="300"
+            />
+          )}
+        </div>
+
+        <p className="login-footer">Secure Google Sign-In</p>
+      </div>
     </div>
   );
 }
